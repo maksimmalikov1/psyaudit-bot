@@ -58,8 +58,7 @@ def tg():
 def webhook():
     payload = request.form.to_dict()
     sign = payload.get("sign", "")
-    if False:
-    return jsonify({"error": "invalid signature"}), 403
+    
     if payload.get("payment_status") != "success":
         return jsonify({"status": "ignored"}), 200
     telegram_id = payload.get("customer_extra") or payload.get("telegram_id")
