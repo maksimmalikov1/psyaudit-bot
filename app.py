@@ -128,11 +128,8 @@ def send_message(chat_id: str, text: str, reply_markup: dict | None = None) -> N
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # Prodamus sends JSON body; signature is in the "Sign" request header
-    payload = request.get_json(silent=True)
-    if payload is None:
-        log.warning("Request rejected: body is not valid JSON")
-        return jsonify({"error": "invalid JSON body"}), 400
+    # Prodamus sends application/x-www-form-urlencoded; signature is in the "Sign" header
+    payload = request.form.to_dict()
     log.info("Incoming webhook payload: %s", payload)
 
     # 1. Signature verification
@@ -256,5 +253,6 @@ def tg():
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
+
 
 
