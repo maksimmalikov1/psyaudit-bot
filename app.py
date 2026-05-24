@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import json
 import logging
 import os
 import re
@@ -19,11 +20,35 @@ PRODAMUS_SECRET_KEY = os.environ["PRODAMUS_SECRET_KEY"]
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 # ---------------------------------------------------------------------------
-# In-memory phone → chat_id mapping  (phone_number: str → chat_id: str)
-# Populated when user shares contact via /start; used by /webhook to route
-# the invite link to the right chat.
+# phone → chat_id mapping, persisted to JSON so it survives restarts
 # ---------------------------------------------------------------------------
-phone_map: dict[str, str] = {}
+PHONE_MAP_PATH = "/tmp/phone_map.json"
+
+
+def _load_phone_map() -> dict[str, str]:
+    try:
+        with open(PHONE_MAP_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+            log.info("Loaded %d phone mappings from %s", len(data), PHONE_MAP_PATH)
+            return data
+    except FileNotFoundError:
+        log.info("No phone_map file found at %s, starting fresh", PHONE_MAP_PATH)
+        return {}
+    except Exception:
+        log.exception("Failed to load phone_map from %s, starting fresh", PHONE_MAP_PATH)
+        return {}
+
+
+def _save_phone_map() -> None:
+    try:
+        with open(PHONE_MAP_PATH, "w", encoding="utf-8") as f:
+            json.dump(phone_map, f, ensure_ascii=False, indent=2)
+        log.info("phone_map saved to %s (%d entries)", PHONE_MAP_PATH, len(phone_map))
+    except Exception:
+        log.exception("Failed to save phone_map to %s", PHONE_MAP_PATH)
+
+
+phone_map: dict[str, str] = {}  # populated below after logging is configured
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -38,6 +63,8 @@ logging.basicConfig(
     ],
 )
 log = logging.getLogger(__name__)
+
+phone_map = _load_phone_map()  # load after logger is ready
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +230,7 @@ def tg():
         if phone:
             phone_map[phone] = chat_id
             log.info("Saved phone mapping: %s → %s", phone, chat_id)
+            _save_phone_map()
             try:
                 send_message(
                     chat_id,
